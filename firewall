@@ -1,0 +1,39 @@
+*filter
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+:OUTPUT DROP [0:0]
+
+#for SMURF attack protection
+-A INPUT -p icmp -m icmp --icmp-type address-mask-request -j DROP
+-A INPUT -p icmp -m icmp --icmp-type timestamp-request -j DROP
+
+# Drop all invalid packets
+-A INPUT -m state --state INVALID -j DROP
+-A FORWARD -m state --state INVALID -j DROP
+-A OUTPUT -m state --state INVALID -j DROP
+
+# Attempt to block portscans
+# # Anyone who tried to portscan us is locked out for an entire day.
+-A INPUT   -m recent --name portscan --rcheck --seconds 86400 -j DROP
+-A FORWARD -m recent --name portscan --rcheck --seconds 86400 -j DROP
+
+# Once the day has passed, remove them from the portscan list
+-A INPUT   -m recent --name portscan --remove
+-A FORWARD -m recent --name portscan --remove
+
+# These rules add scanners to the portscan list, and log the attempt.
+-A INPUT   -p tcp -m tcp --dport 139 -m recent --name portscan --set -j LOG --log-prefix "Portscan:"
+-A INPUT   -p tcp -m tcp --dport 139 -m recent --name portscan --set -j DROP
+
+-A FORWARD -p tcp -m tcp --dport 139 -m recent --name portscan --set -j LOG --log-prefix "Portscan:"
+-A FORWARD -p tcp -m tcp --dport 139 -m recent --name portscan --set -j DROP
+
+-A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
+-A INPUT -p tcp -m tcp --dport 80 -j ACCEPT
+-A INPUT -p tcp -m tcp --dport 443 -j ACCEPT
+-A OUTPUT -p tcp -m tcp --dport 80 -j ACCEPT
+-A OUTPUT -p tcp -m tcp --dport 443 -j ACCEPT
+-A OUTPUT -p udp -m udp --dport 53 -j ACCEPT
+-A INPUT -p tcp -m state --state NEW -m tcp --dport 42 -j ACCEPT
+-A OUTPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
+COMMIT
